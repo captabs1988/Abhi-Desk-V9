@@ -1256,6 +1256,7 @@ function placeBlock(blockId, name, color, startMin, duration, existingId, existi
       document.removeEventListener('mousemove',mv);
       document.removeEventListener('mouseup',up);
       startCountersIfNeeded();
+      updateNotepad(); // triggers saveState + syncToShared
       updateCountdownGuides();
     };
     document.addEventListener('mousemove',mv);
@@ -1263,6 +1264,7 @@ function placeBlock(blockId, name, color, startMin, duration, existingId, existi
   });
 
   selectBlock(id); checkOverlaps(); updateNotepad();
+  if(!existingId) syncToShared(); // immediately push new block to shared store
   startCountersIfNeeded();
   updateCountdownGuides();
 }
