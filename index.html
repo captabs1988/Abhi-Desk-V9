@@ -810,6 +810,8 @@ function prodStart(){
   if(!D[key])D[key]={};D[key].workStart=t;sv();
   var el=document.getElementById('ws-'+key);
   if(el){el.value=t;refreshGap(key);}
+  var flEl=document.getElementById('fl-ws-'+key);
+  if(flEl){flEl.value=t;flRefreshGap(key);}
   var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var dl=DN[now.getDay()]+' '+now.getDate()+' '+MN[now.getMonth()];
