@@ -180,20 +180,22 @@ window.addEventListener('message',function(e){
     document.documentElement.setAttribute('data-theme',e.data.dark?'dark':'light');
   }
   // Fix 4: Kickstart block from Daily Log wake time
-  if(e.data&&e.data.type==='dayflow_kickstart'){
-    var wakeHH=parseInt(e.data.wakeHH)||0;
-    var wakeMM=parseInt(e.data.wakeMM)||0;
-    var wakeMin=wakeHH*60+wakeMM;
-    var nowMin=getNowMinutes();
-    if(nowMin<=wakeMin)nowMin=wakeMin+5; // safety: at least 5 min block
-    var dur=nowMin-wakeMin;
-    var kickColor={r:255,g:167,b:38,a:55}; // warm amber — energising morning colour
-    // Remove existing Kickstart block for today if any
-    var existing=placed.filter(function(pb){return pb.name==='Kickstart'&&pb.dateKey===getTodayKey();});
-    existing.forEach(function(pb){removePl(pb.id);});
-    // Place new Kickstart block
-    placeBlock('kickstart','Kickstart',kickColor,wakeMin,Math.max(5,dur));
-    updateNotepad();
+ if(e.data&&e.data.type==='dayflow_kickstart'){
+    var _wakeHH=parseInt(e.data.wakeHH)||0;
+    var _wakeMM=parseInt(e.data.wakeMM)||0;
+    function _doKickstart(){
+      var wakeMin=_wakeHH*60+_wakeMM;
+      var nowMin=getNowMinutes();
+      if(nowMin<=wakeMin)nowMin=wakeMin+5;
+      var dur=nowMin-wakeMin;
+      var kickColor={r:255,g:167,b:38,a:55};
+      var existing=placed.filter(function(pb){return pb.name==='Kickstart'&&pb.dateKey===getTodayKey();});
+      existing.forEach(function(pb){removePl(pb.id);});
+      placeBlock('kickstart','Kickstart',kickColor,wakeMin,Math.max(5,dur));
+      updateNotepad();
+    }
+    if(typeof placeBlock==='function'){_doKickstart();}
+    else{window.addEventListener('load',_doKickstart,{once:true});}
   }
 });
 </script>
