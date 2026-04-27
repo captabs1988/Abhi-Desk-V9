@@ -1425,6 +1425,9 @@ function saveCalendarToShared(){
     Object.keys(shiftData).forEach(function(dk){
       (shiftData[dk] || []).forEach(function(b){
         if(b.type !== 'shift') return; // only export actual shift, not prep/post buffers
+        var rawName = b.label ? b.label.replace(/^⚙ /, '') : 'Shift';
+        // Ensure the name contains "shift" so DayFlow countdown detection works
+        if(!rawName.toLowerCase().includes('shift')) rawName = 'Shift: ' + rawName;
         all.push({
           id: 'cal_' + b.id,
           source: 'calendar',
@@ -1432,7 +1435,7 @@ function saveCalendarToShared(){
           startMin: b.startMin,
           endMin: b.endMin,
           duration: b.endMin - b.startMin,
-          name: b.label ? b.label.replace(/^⚙ /, '') : 'Shift',
+          name: rawName,
           color: {r:108, g:138, b:255, a:35} // calendar accent blue
         });
       });
