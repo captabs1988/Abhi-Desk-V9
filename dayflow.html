@@ -180,22 +180,20 @@ window.addEventListener('message',function(e){
     document.documentElement.setAttribute('data-theme',e.data.dark?'dark':'light');
   }
   // Fix 4: Kickstart block from Daily Log wake time
- if(e.data&&e.data.type==='dayflow_kickstart'){
-    var _wakeHH=parseInt(e.data.wakeHH)||0;
-    var _wakeMM=parseInt(e.data.wakeMM)||0;
-    function _doKickstart(){
-      var wakeMin=_wakeHH*60+_wakeMM;
-      var nowMin=getNowMinutes();
-      if(nowMin<=wakeMin)nowMin=wakeMin+5;
-      var dur=nowMin-wakeMin;
-      var kickColor={r:255,g:167,b:38,a:55};
-      var existing=placed.filter(function(pb){return pb.name==='Kickstart'&&pb.dateKey===getTodayKey();});
-      existing.forEach(function(pb){removePl(pb.id);});
-      placeBlock('kickstart','Kickstart',kickColor,wakeMin,Math.max(5,dur));
-      updateNotepad();
-    }
-    if(typeof placeBlock==='function'){_doKickstart();}
-    else{window.addEventListener('load',_doKickstart,{once:true});}
+  if(e.data&&e.data.type==='dayflow_kickstart'){
+    var wakeHH=parseInt(e.data.wakeHH)||0;
+    var wakeMM=parseInt(e.data.wakeMM)||0;
+    var wakeMin=wakeHH*60+wakeMM;
+    var nowMin=getNowMinutes();
+    if(nowMin<=wakeMin)nowMin=wakeMin+5; // safety: at least 5 min block
+    var dur=nowMin-wakeMin;
+    var kickColor={r:255,g:167,b:38,a:55}; // warm amber — energising morning colour
+    // Remove existing Kickstart block for today if any
+    var existing=placed.filter(function(pb){return pb.name==='Kickstart'&&pb.dateKey===getTodayKey();});
+    existing.forEach(function(pb){removePl(pb.id);});
+    // Place new Kickstart block
+    placeBlock('kickstart','Kickstart',kickColor,wakeMin,Math.max(5,dur));
+    updateNotepad();
   }
 });
 </script>
@@ -385,7 +383,7 @@ window.addEventListener('message',function(e){
 // CONSTANTS
 // ══════════════════════════════════════════════════
 const PPM   = 1.6; // pixels per minute
-const TOTAL = 37*1440;   // total minutes shown
+const TOTAL = 43200;  // total minutes shown
 
 const PRESET_COLORS = [
   [79,142,247],[167,139,250],[52,211,153],[248,113,113],
@@ -530,8 +528,8 @@ function fmt(m,opts) { return new Intl.DateTimeFormat('en-GB',{timeZone:getTz(),
 function fmtHHMM(m)  { return fmt(m,{hour:'2-digit',minute:'2-digit',hour12:false}); } // HH:MM
 function fmtDay(m)   { return fmt(m,{weekday:'short',day:'numeric',month:'short'}); } // day label
 function fmtFull(m)  { return fmtDay(m)+' '+fmtHHMM(m); } // full label
-const m2y   = m => (m + 7*1440)*PPM;// minutes to pixels
-const y2m   = y => Math.round(y/PPM) - 7*1440; // pixels to minutes
+const m2y   = m => m*PPM; // minutes to pixels
+const y2m   = y => Math.round(y/PPM); // pixels to minutes
 const snap5 = m => Math.round(m/5)*5;  // round to 5 mins
 
 function secsToHMS(s) { // seconds to 00:00:00
@@ -708,9 +706,9 @@ tzEl.addEventListener('change', () => { tickClock(); rebuildRuler(); buildDropZo
 function buildDropZone() { // build timeline background bands and hour lines
   const dz = document.getElementById('dz');
   dz.querySelectorAll('.tod-band,.hour-line').forEach(el => el.remove());
-  const DAYS_BACK = 7; const DAYS_FORWARD = 30; const DAYS = DAYS_BACK + DAYS_FORWARD;
+  const DAYS = 30;
   for (let day=0; day<DAYS; day++) {
-    const dayOffMin = (day - DAYS_BACK)*1440;
+    const dayOffMin = day*1440;
     TOD_BANDS.forEach((band,bi) => {
       const bandEl = document.createElement('div');
       bandEl.className = 'tod-band';
@@ -729,7 +727,7 @@ function buildDropZone() { // build timeline background bands and hour lines
   }
   const last = document.createElement('div');
   last.className = 'hour-line day-break';
-  last.style.top = m2y(DAYS_FORWARD*1440)+'px';
+  last.style.top = m2y(DAYS*1440)+'px';
   dz.appendChild(last);
 }
 
@@ -739,7 +737,7 @@ function buildDropZone() { // build timeline background bands and hour lines
 function rebuildRuler() { // rebuild left-side time ruler
   const ruler = document.getElementById('ruler');
   ruler.innerHTML = '';
-  for (let m=-7*1440; m<=30*1440; m+=15) {
+  for (let m=0; m<=TOTAL; m+=15) {
     const y = m2y(m);
     if (m%1440===0) {
       const dl = document.createElement('div');
@@ -912,18 +910,52 @@ function renderParking() { // render left parking list
         <div class="p-block-dur">${b.duration} min</div>
       </div>
       <div class="p-block-reorder">
-        <button title="Move up" onclick="moveBlock(${idx},-1)">▲</button>
-        <button title="Move down" onclick="moveBlock(${idx},1)">▼</button>
+        <button title="Move up">▲</button>
+        <button title="Move down">▼</button>
       </div>
       <div class="p-block-actions">
-        <button onclick="openModal('${b.id}')" title="Edit">✏</button>
-        <button onclick="delBlock('${b.id}')" title="Delete">✕</button>
+        <button class="p-edit-btn" data-bid="${b.id}" title="Edit">✏</button>
+        <button class="p-del-btn" data-bid="${b.id}" title="Delete">✕</button>
       </div>`;
 
-    // Drag-to-place on timeline
+    // Bind edit/delete buttons with proper event listeners (not inline onclick)
+    el.querySelector('.p-edit-btn').addEventListener('click', ev => {
+      ev.stopPropagation(); openModal(b.id);
+    });
+    el.querySelector('.p-del-btn').addEventListener('click', ev => {
+      ev.stopPropagation(); delBlock(b.id);
+    });
+    // Also bind the reorder ▲▼ buttons
+    el.querySelectorAll('.p-block-reorder button').forEach((btn, i) => {
+      btn.addEventListener('click', ev => {
+        ev.stopPropagation(); moveBlock(idx, i===0?-1:1);
+      });
+    });
+
+    // Drag-to-place on timeline — with threshold so clicks still work
     el.addEventListener('mousedown', ev => {
       if (ev.target.classList.contains('park-handle')) return;
       if (ev.target.tagName==='BUTTON') return;
+      if (ev.button !== 0) return;
+      // Block click events on action buttons if we end up dragging
+      const clickGuard = ev2 => {
+        ev2.stopImmediatePropagation();
+        ev2.preventDefault();
+      };
+      const downX = ev.clientX, downY = ev.clientY;
+      const THRESHOLD = 6;
+      let guardInstalled = false;
+      const checkThreshold = ev2 => {
+        if (!guardInstalled && (Math.abs(ev2.clientX-downX)>THRESHOLD || Math.abs(ev2.clientY-downY)>THRESHOLD)) {
+          guardInstalled = true;
+          // Suppress any click that fires after mouseup when dragging
+          document.addEventListener('click', clickGuard, {capture:true, once:true});
+        }
+      };
+      document.addEventListener('mousemove', checkThreshold);
+      document.addEventListener('mouseup', () => {
+        document.removeEventListener('mousemove', checkThreshold);
+      }, {once:true});
       onParkDown(ev, b);
     });
 
@@ -1018,18 +1050,33 @@ function onParkDown(e, b) { // drag parked block into timeline
   if (e.button!==0) return;
   e.preventDefault(); e.stopPropagation();
 
-  const ghost = document.createElement('div');
-  ghost.className = 't-block';
-  const gh = Math.max(26, b.duration*PPM);
-  ghost.style.cssText=`position:fixed;width:170px;height:${gh}px;background:${toRgba(b.color)};border-left:4px solid ${toRgba(b.color,false)};pointer-events:none;z-index:9999;opacity:0.85;left:${e.clientX-85}px;top:${e.clientY-12}px;border-radius:10px;padding:5px 8px;font-size:11px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.18);`;
-  ghost.textContent = b.name;
-  document.body.appendChild(ghost);
+  const startX = e.clientX, startY = e.clientY;
+  const DRAG_THRESHOLD = 6; // px — must move this far before ghost appears
+  let dragging = false;
+  let ghost = null, snapLine = null;
 
-  const snapLine = document.createElement('div');
-  snapLine.style.cssText='position:absolute;left:0;right:0;height:2px;background:var(--accent);opacity:.6;z-index:50;pointer-events:none;display:none;';
-  document.getElementById('dz').appendChild(snapLine);
+  function startDrag(ev) {
+    dragging = true;
+    ghost = document.createElement('div');
+    ghost.className = 't-block';
+    const gh = Math.max(26, b.duration*PPM);
+    ghost.style.cssText=`position:fixed;width:170px;height:${gh}px;background:${toRgba(b.color)};border-left:4px solid ${toRgba(b.color,false)};pointer-events:none;z-index:9999;opacity:0.85;left:${ev.clientX-85}px;top:${ev.clientY-12}px;border-radius:10px;padding:5px 8px;font-size:11px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.18);color:var(--text);`;
+    ghost.textContent = b.name;
+    document.body.appendChild(ghost);
+
+    snapLine = document.createElement('div');
+    snapLine.style.cssText='position:absolute;left:0;right:0;height:2px;background:var(--accent);opacity:.6;z-index:50;pointer-events:none;display:none;';
+    document.getElementById('dz').appendChild(snapLine);
+  }
 
   function onMove(ev) {
+    if (!dragging) {
+      // Check if we've moved far enough to start dragging
+      const dx = Math.abs(ev.clientX - startX);
+      const dy = Math.abs(ev.clientY - startY);
+      if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) return;
+      startDrag(ev);
+    }
     ghost.style.left=(ev.clientX-85)+'px';
     ghost.style.top=(ev.clientY-12)+'px';
     const scRect = tlScroll.getBoundingClientRect();
@@ -1043,11 +1090,12 @@ function onParkDown(e, b) { // drag parked block into timeline
   function onUp(ev) {
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
+    if (!dragging) return; // was just a click, do nothing
     ghost.remove(); snapLine.remove();
     const scRect = tlScroll.getBoundingClientRect();
     if (ev.clientX>=scRect.left&&ev.clientX<=scRect.right&&ev.clientY>=scRect.top&&ev.clientY<=scRect.bottom) {
       const y=(ev.clientY-scRect.top)+tlScroll.scrollTop;
-      const startMin=snap5(y2m(y));;
+      const startMin=snap5(Math.max(0,y2m(y)));
       placeBlock(b.id, b.name, b.color, startMin, b.duration);
     }
   }
@@ -1133,7 +1181,7 @@ function placeBlock(blockId, name, color, startMin, duration, existingId, existi
     el.classList.add('dragging');
     const mv=e2=>{
       const dy=e2.clientY-startY0, ds=tlScroll.scrollTop-startScroll;
-      let newMin=snap5(startMin0+y2m(dy+ds));
+      let newMin=snap5(Math.max(0,startMin0+y2m(dy+ds)));
       const SNAP=10;
       placed.forEach(other=>{
         if(other.id===id) return;
@@ -1405,7 +1453,7 @@ document.getElementById('gasUrl').addEventListener('input', e => {
 window.addEventListener('beforeunload', saveState);
 
 setTimeout(()=>{
-  const m=getNowMinutes()-30;
+  const m=Math.max(0,getNowMinutes()-30);
   tlScroll.scrollTop=m2y(m); tSlider.value=m; updateSliderLabel();
 },100);
 </script>
