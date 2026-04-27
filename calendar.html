@@ -76,6 +76,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .shift-block.type-shift{background:rgba(108,138,255,.28);border-color:rgba(108,138,255,.7);color:#a5b4fc;}
 .shift-block.type-post{background:rgba(167,139,250,.2);border-color:rgba(167,139,250,.5);color:#c4b5fd;}
 .shift-block.type-overlap{background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.8);color:#fca5a5;animation:pulse-red 1.5s ease-in-out infinite;}
+.shift-block.type-dayflow{background:rgba(45,212,191,.18);border-color:rgba(45,212,191,.6);color:#5eead4;border-style:dashed;}
+[data-theme="light"] .shift-block.type-dayflow{background:rgba(13,148,136,.12);border-color:rgba(13,148,136,.5);color:#0d9488;}
 @keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4);}50%{box-shadow:0 0 0 4px rgba(239,68,68,.12);}}
 [data-theme="light"] .shift-block.type-prep{background:rgba(217,119,6,.16);border-color:rgba(217,119,6,.5);color:#92400e;}
 [data-theme="light"] .shift-block.type-shift{background:rgba(58,95,217,.18);border-color:rgba(58,95,217,.6);color:#3a5fd9;}
@@ -239,6 +241,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <div class="leg-item"><div class="leg-dot" style="background:rgba(167,139,250,.4);border:1px solid #a78bfa;"></div>Post-shift (2h after)</div>
   <div class="leg-item"><div class="leg-dot" style="background:rgba(239,68,68,.4);border:1px solid #ef4444;"></div>Overlap ⚠</div>
   <div class="leg-item"><div class="leg-dot" style="background:rgba(56,189,248,.35);border:1px solid #38bdf8;"></div>Rain</div>
+  <div class="leg-item"><div class="leg-dot" style="background:rgba(45,212,191,.3);border:1px dashed #2dd4bf;"></div>DayFlow block</div>
   <div class="leg-item" style="margin-left:8px;color:var(--gn);">█ Today</div>
   <div class="leg-item" style="color:var(--ac);">░ Next 7 days</div>
 </div>
@@ -385,7 +388,7 @@ var THEME_KEY = 'abhiDesk_calendar2026_theme';
 
 // State
 var curMonth = (new Date().getFullYear() === YEAR) ? new Date().getMonth() : 0;
-var hrPx = 40; // pixels per hour — zoom target: 24*hrPx = total grid height
+var hrPx = 30; // will be recalculated at init to fit full day — see calcFitHrPx()
 var rainVisible = true;
 var shiftData = {}; // { 'YYYY-MM-DD': [{id, label, start, end, type}] }
 var weatherData = {}; // { 'YYYY-MM-DD': [{hour, rain_mm, rain_prob}] }
@@ -458,6 +461,7 @@ function loadShifts(){
 function saveShifts(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(shiftData)); }
   catch(e){}
+  saveCalendarToShared(); // mirror shift-type blocks to shared store for DayFlow
 }
 function loadWeather(){
   try{ weatherData = JSON.parse(localStorage.getItem(WEATHER_KEY) || '{}'); }
@@ -479,11 +483,16 @@ function zoom(dir){
   hrPx = steps[i];
   renderMonth(curMonth);
 }
+function calcFitHrPx(){
+  // Compute hrPx so 24 hours fills the available body height exactly
+  var avail = document.getElementById('tl-body').offsetHeight || window.innerHeight - 160;
+  return Math.max(18, Math.floor(avail / 24));
+}
 function zoomReset(){
-  // fit 24 hours into available height
-  var avail = document.getElementById('tl-body').offsetHeight;
-  hrPx = Math.max(20, Math.floor(avail / 24));
+  hrPx = calcFitHrPx();
   renderMonth(curMonth);
+  // scroll back to top after reset
+  setTimeout(function(){ document.getElementById('tl-scroll').scrollTop = 0; }, 60);
 }
 
 // ════════════════════════════════════
@@ -589,20 +598,22 @@ function renderMonth(m){
     // rain blocks
     renderRainBlocks(col, iso2, totalH);
 
+    // DayFlow sync blocks (read-only overlay)
+    renderDayflowBlocks(col, iso2);
+
     grid.appendChild(col);
   }
 
-  // Scroll vertically to 06:00 and horizontally to today (or start of month)
+  // Scroll: today = first visible column on left; vertical = 0 (full day fits)
   setTimeout(function(){
     var tls = document.getElementById('tl-scroll');
-    tls.scrollTop = Math.max(0, hrPx * 5); // 06:00
-    // Scroll today's column into view horizontally
+    tls.scrollTop = 0; // full day visible — no vertical scroll needed at default zoom
     var todayIso = today();
     var todayMonth = parseInt(todayIso.slice(5,7)) - 1;
     if(todayMonth === m && parseInt(todayIso.slice(0,4)) === YEAR){
       var todayDay = parseInt(todayIso.slice(8,10));
-      var scrollX = Math.max(0, (todayDay - 3) * colW); // show 2 days before today
-      tls.scrollLeft = scrollX;
+      // Place today as the first visible column (col index = todayDay-1, 0-based)
+      tls.scrollLeft = (todayDay - 1) * colW;
     } else {
       tls.scrollLeft = 0;
     }
@@ -1361,6 +1372,83 @@ function manQuickSubmit(){
 
 
 
+
+// ════════════════════════════════════
+// SHARED EVENT STORE — two-way sync with DayFlow
+// Key: 'abhiDesk_shared_events'
+// Schema: [{id, source:'calendar'|'dayflow', dateKey, startMin, endMin, duration, name, color}]
+// Calendar writes 'calendar' source entries; DayFlow writes 'dayflow' source entries.
+// Each panel only renders entries from the OTHER source on its grid.
+// ════════════════════════════════════
+var SHARED_KEY = 'abhiDesk_shared_events';
+var sharedFromDayflow = {}; // { 'YYYY-MM-DD': [{name, startMin, endMin, color}] }
+
+function loadSharedEvents(){
+  try {
+    var raw = localStorage.getItem(SHARED_KEY);
+    if(!raw){ sharedFromDayflow = {}; return; }
+    var all = JSON.parse(raw);
+    sharedFromDayflow = {};
+    all.forEach(function(ev){
+      if(ev.source !== 'dayflow') return; // Calendar only renders DayFlow entries here
+      var dk = ev.dateKey;
+      if(!dk || dk.slice(0,4) !== String(YEAR)) return;
+      var sMin = Math.max(0, Math.min(1439, ev.startMin || 0));
+      var eMin = Math.min(1440, ev.endMin || (sMin + (ev.duration || 60)));
+      if(sMin >= eMin) return;
+      if(!sharedFromDayflow[dk]) sharedFromDayflow[dk] = [];
+      sharedFromDayflow[dk].push({name: ev.name || 'DayFlow', startMin: sMin, endMin: eMin, color: ev.color || null});
+    });
+  } catch(e){ sharedFromDayflow = {}; }
+}
+
+function saveCalendarToShared(){
+  // Write all calendar shifts (type==='shift' only, not prep/post) into shared store
+  try {
+    var raw = localStorage.getItem(SHARED_KEY);
+    var all = [];
+    try { all = JSON.parse(raw) || []; } catch(e){ all = []; }
+    // Remove old calendar entries, re-add from current shiftData
+    all = all.filter(function(ev){ return ev.source !== 'calendar'; });
+    Object.keys(shiftData).forEach(function(dk){
+      (shiftData[dk] || []).forEach(function(b){
+        if(b.type !== 'shift') return; // only export actual shift, not prep/post buffers
+        all.push({
+          id: 'cal_' + b.id,
+          source: 'calendar',
+          dateKey: dk,
+          startMin: b.startMin,
+          endMin: b.endMin,
+          duration: b.endMin - b.startMin,
+          name: b.label ? b.label.replace(/^⚙ /, '') : 'Shift',
+          color: {r:108, g:138, b:255, a:35} // calendar accent blue
+        });
+      });
+    });
+    localStorage.setItem(SHARED_KEY, JSON.stringify(all));
+  } catch(e){ console.warn('[Calendar] saveCalendarToShared failed:', e); }
+}
+
+function renderDayflowBlocks(col, iso){
+  var blocks = sharedFromDayflow[iso] || [];
+  blocks.forEach(function(b){
+    var el = document.createElement('div');
+    el.className = 'shift-block type-dayflow';
+    var top = (b.startMin / 60) * hrPx;
+    var ht  = Math.max(4, ((b.endMin - b.startMin) / 60) * hrPx);
+    el.style.top    = top + 'px';
+    el.style.height = ht + 'px';
+    if(b.color && b.color.r != null){
+      el.style.background  = 'rgba('+b.color.r+','+b.color.g+','+b.color.b+',.22)';
+      el.style.borderColor = 'rgba('+b.color.r+','+b.color.g+','+b.color.b+',.7)';
+      el.style.color       = 'rgba('+b.color.r+','+b.color.g+','+b.color.b+',1)';
+    }
+    el.title = '📅 DayFlow: ' + b.name + ' (' + minutesToTime(b.startMin) + '–' + minutesToTime(b.endMin) + ')';
+    if(ht > 14){ el.textContent = '📅 ' + b.name; }
+    col.appendChild(el);
+  });
+}
+
 // ════════════════════════════════════
 // SHIFT DELETE / CONTEXT MENU
 // ════════════════════════════════════
@@ -1438,14 +1526,29 @@ document.addEventListener('keydown', function(e){
 // INIT
 // ════════════════════════════════════
 loadShifts();
+saveCalendarToShared(); // push existing Calendar shifts into shared store on load
 loadWeather();
+loadSharedEvents(); // read shared event store (DayFlow entries)
 buildMonthNav();
-renderMonth(curMonth);
-fetchWeather(false);
+// Set hrPx so full 24h fits on screen before first render
+// Use setTimeout so layout is done and offsetHeight is reliable
+setTimeout(function(){
+  hrPx = calcFitHrPx();
+  renderMonth(curMonth);
+  fetchWeather(false);
+}, 0);
 
 window.addEventListener('resize', function(){
   renderMonth(curMonth);
 });
+// Re-read shared store whenever DayFlow or another panel updates it
+window.addEventListener('storage', function(e){
+  if(e.key === 'abhiDesk_shared_events'){
+    loadSharedEvents();
+    renderMonth(curMonth);
+  }
+});
+
 </script>
 <!-- ── SHIFT CONTEXT MENU ── -->
 <div id="shift-ctx">
