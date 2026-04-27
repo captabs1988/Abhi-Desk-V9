@@ -64,10 +64,20 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 #tl-grid{position:relative;display:flex;}
 
 /* Date column */
-.date-col{position:relative;min-width:var(--col-w,80px);width:var(--col-w,80px);flex-shrink:0;border-right:1px solid rgba(255,255,255,.04);}
-/* Hour lines */
-.hour-line{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,.05);pointer-events:none;}
-.hour-line.hr6,.hour-line.hr12,.hour-line.hr18{border-top-color:rgba(255,255,255,.1);}
+.date-col{position:relative;min-width:var(--col-w,80px);width:var(--col-w,80px);flex-shrink:0;border-right:1px solid var(--bd);}
+/* Alternating day columns for easier visual scanning */
+.date-col:nth-child(even){background:rgba(108,138,255,.025);}
+.date-col:nth-child(odd){background:transparent;}
+/* Hour lines — clearer grid */
+.hour-line{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,.07);pointer-events:none;}
+.hour-line.hr6,.hour-line.hr12,.hour-line.hr18{border-top-color:rgba(255,255,255,.18);border-top-width:1px;}
+/* Half-hour lines subtler */
+.hour-line.half{border-top:1px dashed rgba(255,255,255,.03);}
+/* Light theme overrides for grid lines */
+[data-theme="light"] .hour-line{border-top-color:rgba(0,0,0,.06);}
+[data-theme="light"] .hour-line.hr6,[data-theme="light"] .hour-line.hr12,[data-theme="light"] .hour-line.hr18{border-top-color:rgba(0,0,0,.14);}
+[data-theme="light"] .date-col:nth-child(even){background:rgba(58,95,217,.025);}
+[data-theme="light"] .date-col{border-right-color:var(--bd);}
 
 /* ── SHIFT BLOCKS ── */
 .shift-block{position:absolute;left:3px;right:3px;border-radius:4px;font-size:8px;font-family:monospace;font-weight:700;padding:2px 4px;overflow:hidden;cursor:default;border:1px solid transparent;transition:opacity .12s;z-index:3;}
@@ -87,9 +97,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .rain-block{position:absolute;left:0;right:0;pointer-events:none;z-index:1;transition:opacity .2s;}
 .rain-block.hidden{display:none;}
 
-/* ── TODAY / WEEK COLUMN BACKGROUNDS ── */
-.date-col.today-col{background:rgba(52,211,153,.03);}
-.date-col.week-col{background:rgba(108,138,255,.02);}
+/* ── TODAY / WEEK COLUMN BACKGROUNDS — override alternating ── */
+.date-col.today-col{background:rgba(52,211,153,.07)!important;}
+.date-col.week-col{background:rgba(108,138,255,.04)!important;}
+[data-theme="light"] .date-col.today-col{background:rgba(5,150,105,.07)!important;}
+[data-theme="light"] .date-col.week-col{background:rgba(58,95,217,.04)!important;}
 
 /* ── BOTTOM MONTH NAV ── */
 #month-nav{display:flex;align-items:center;gap:4px;padding:5px 10px;background:var(--sf);border-top:2px solid var(--bd);flex-shrink:0;overflow-x:auto;}
