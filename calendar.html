@@ -164,6 +164,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* weather loading indicator */
 #wx-status{font-size:9px;font-family:monospace;color:var(--mu);padding:2px 8px;border-radius:4px;border:1px solid var(--bd);background:var(--sf2);}
 
+/* ── SHIFT CONTEXT MENU ── */
+#shift-ctx{position:fixed;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:4px 0;min-width:190px;z-index:9999;box-shadow:0 8px 28px rgba(0,0,0,.55);display:none;}
+#shift-ctx.open{display:block;}
+.sctx-hd{padding:6px 12px 4px;font-size:9px;font-family:monospace;color:var(--mu);border-bottom:1px solid var(--bd);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sctx-item{padding:7px 12px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .1s;}
+.sctx-item:hover{background:var(--sf2);}
+.sctx-item.danger{color:var(--rd);}
+.sctx-item.danger:hover{background:rgba(239,68,68,.08);}
+.sctx-sep{height:1px;background:var(--bd);margin:3px 0;}
+
 /* ── MODE 3: MANUAL PICKER ── */
 #pi-manual{display:none;flex:1;flex-direction:column;overflow-y:auto;padding:14px;}
 #pi-manual.show{display:flex;}
@@ -626,11 +636,36 @@ function renderShiftBlocks(col, iso, totalH){
     var ht = Math.max(4, ((b.endMin - b.startMin) / 60) * hrPx);
     el.style.top = top + 'px';
     el.style.height = ht + 'px';
-    el.title = b.label + ' (' + minutesToTime(b.startMin) + '–' + minutesToTime(b.endMin) + ')';
-    // Only show label if tall enough
+    el.dataset.blockId = b.id;
+    el.dataset.iso = iso;
+    // Label + delete × button
     if(ht > 14){
-      el.textContent = (isOverlap ? '⚠ ' : '') + b.label;
+      var inner = document.createElement('div');
+      inner.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:2px;height:100%;';
+      var txt = document.createElement('span');
+      txt.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';
+      txt.textContent = (isOverlap ? '⚠ ' : '') + b.label;
+      var xbtn = document.createElement('span');
+      xbtn.textContent = '×';
+      xbtn.title = 'Delete shift';
+      xbtn.style.cssText = 'flex-shrink:0;font-size:10px;line-height:1;padding:0 1px;opacity:0;cursor:pointer;transition:opacity .12s;border-radius:2px;';
+      xbtn.className = 'block-del-btn';
+      xbtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        openCtx(e, b, iso, false);
+      });
+      el.addEventListener('mouseenter', function(){ xbtn.style.opacity='1'; });
+      el.addEventListener('mouseleave', function(){ xbtn.style.opacity='0'; });
+      inner.appendChild(txt);
+      inner.appendChild(xbtn);
+      el.appendChild(inner);
     }
+    // Right-click context menu
+    el.addEventListener('contextmenu', function(e){
+      e.preventDefault();
+      openCtx(e, b, iso, true);
+    });
+    el.title = b.label + ' (' + minutesToTime(b.startMin) + '–' + minutesToTime(b.endMin) + ') — right-click to delete';
     col.appendChild(el);
   });
 }
@@ -1325,6 +1360,80 @@ function manQuickSubmit(){
 }
 
 
+
+// ════════════════════════════════════
+// SHIFT DELETE / CONTEXT MENU
+// ════════════════════════════════════
+var _ctxBlock = null; // {id, iso}
+
+function openCtx(e, block, iso, fromRightClick){
+  _ctxBlock = {id: block.id, iso: iso};
+  var ctx = document.getElementById('shift-ctx');
+  var lbl = document.getElementById('sctx-label');
+  lbl.textContent = block.label + '  ' + minutesToTime(block.startMin) + '–' + minutesToTime(block.endMin);
+
+  // Position near cursor
+  var x = e.clientX, y = e.clientY;
+  ctx.style.left = Math.min(x, window.innerWidth - 200) + 'px';
+  ctx.style.top  = Math.min(y, window.innerHeight - 130) + 'px';
+  ctx.classList.add('open');
+
+  // Close on outside click
+  setTimeout(function(){
+    document.addEventListener('click', closeCtxOutside, {once:true});
+  }, 0);
+}
+
+function closeCtxOutside(e){
+  var ctx = document.getElementById('shift-ctx');
+  if(ctx && !ctx.contains(e.target)) closeCtx();
+}
+
+function closeCtx(){
+  document.getElementById('shift-ctx').classList.remove('open');
+  _ctxBlock = null;
+}
+
+// Extract uid prefix from block id (everything before last '_')
+function uidFromId(blockId){
+  var parts = blockId.split('_');
+  parts.pop(); // remove type suffix
+  return parts.join('_');
+}
+
+// Delete entire shift group (prep + shift + post, across all dates)
+function deleteShiftGroup(){
+  if(!_ctxBlock){ closeCtx(); return; }
+  var uid = uidFromId(_ctxBlock.id);
+  Object.keys(shiftData).forEach(function(iso){
+    shiftData[iso] = shiftData[iso].filter(function(b){
+      return uidFromId(b.id) !== uid;
+    });
+    if(shiftData[iso].length === 0) delete shiftData[iso];
+  });
+  saveShifts();
+  closeCtx();
+  renderMonth(curMonth);
+}
+
+// Delete only this single block (e.g. just the prep block on one day)
+function deleteBlockOnly(){
+  if(!_ctxBlock){ closeCtx(); return; }
+  var id = _ctxBlock.id, iso = _ctxBlock.iso;
+  if(shiftData[iso]){
+    shiftData[iso] = shiftData[iso].filter(function(b){ return b.id !== id; });
+    if(shiftData[iso].length === 0) delete shiftData[iso];
+  }
+  saveShifts();
+  closeCtx();
+  renderMonth(curMonth);
+}
+
+// Close ctx on Escape
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape') closeCtx();
+});
+
 // ════════════════════════════════════
 // INIT
 // ════════════════════════════════════
@@ -1338,5 +1447,14 @@ window.addEventListener('resize', function(){
   renderMonth(curMonth);
 });
 </script>
+<!-- ── SHIFT CONTEXT MENU ── -->
+<div id="shift-ctx">
+  <div class="sctx-hd" id="sctx-label">Shift</div>
+  <div class="sctx-item danger" onclick="deleteShiftGroup()">✕ Delete this shift (+ prep &amp; post)</div>
+  <div class="sctx-sep"></div>
+  <div class="sctx-item" onclick="deleteBlockOnly()">⊟ Delete this block only</div>
+  <div class="sctx-sep"></div>
+  <div class="sctx-item" onclick="closeCtx()">✗ Cancel</div>
+</div>
 </body>
 </html>
