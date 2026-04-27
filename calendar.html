@@ -36,26 +36,31 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* ── TIMELINE PANEL ── */
 #timeline-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
 
-/* ── TIMELINE HEADER (date headers, fixed) ── */
-#tl-header-row{display:flex;flex-shrink:0;background:var(--sf);border-bottom:2px solid var(--bd);position:relative;z-index:10;}
-#tl-yaxis-stub{width:52px;min-width:52px;flex-shrink:0;border-right:1px solid var(--bd);}
-#tl-date-headers{display:flex;overflow:hidden;flex:1;}
+/* ── TIMELINE LAYOUT ──
+   Structure: left y-axis (fixed) | right scroll area (both axes)
+   Inside scroll: sticky date-header row on top, then grid rows below.
+   This way dates always scroll in sync with grid — no JS transform needed. */
+#tl-body{display:flex;flex:1;overflow:hidden;align-items:stretch;}
+
+/* Fixed left y-axis — mirrors vertical scroll of tl-scroll via scrollTop sync */
+#tl-yaxis{width:52px;min-width:52px;flex-shrink:0;border-right:1px solid var(--bd);background:var(--sf);position:relative;z-index:5;overflow:hidden;align-self:stretch;}
+.y-label{position:absolute;right:5px;font-size:8px;font-family:monospace;color:var(--mu);transform:translateY(-50%);white-space:nowrap;}
+
+/* Main scroll container — scrolls both X and Y */
+#tl-scroll{flex:1;overflow:auto;position:relative;}
+#tl-scroll::-webkit-scrollbar{width:6px;height:6px;}
+#tl-scroll::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+
+/* Sticky date header row — stays at top when scrolling vertically */
+#tl-date-headers{display:flex;position:sticky;top:0;z-index:20;background:var(--sf);border-bottom:2px solid var(--bd);flex-shrink:0;}
 .date-hd{min-width:var(--col-w,80px);width:var(--col-w,80px);border-right:1px solid var(--bd);padding:5px 4px 3px;flex-shrink:0;text-align:center;cursor:default;transition:background .12s;}
-.date-hd.today-col{background:rgba(52,211,153,.08);}
-.date-hd.week-col{background:rgba(108,138,255,.04);}
+.date-hd.today-col{background:rgba(52,211,153,.1);}
+.date-hd.week-col{background:rgba(108,138,255,.05);}
 .date-hd.today-col .dh-num{color:var(--gn);}
 .dh-dow{font-size:8px;font-family:monospace;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;}
 .dh-num{font-size:16px;font-weight:800;font-family:monospace;line-height:1.1;color:var(--tx);}
 
-/* ── TIMELINE BODY (scrollable) ── */
-#tl-body{display:flex;flex:1;overflow:hidden;}
-#tl-yaxis{width:52px;min-width:52px;flex-shrink:0;border-right:1px solid var(--bd);background:var(--sf);overflow-y:hidden;position:relative;z-index:5;}
-.y-label{position:absolute;right:5px;font-size:8px;font-family:monospace;color:var(--mu);transform:translateY(-50%);white-space:nowrap;}
-
-/* ── TIMELINE GRID SCROLL ── */
-#tl-scroll{flex:1;overflow:auto;position:relative;}
-#tl-scroll::-webkit-scrollbar{width:6px;height:6px;}
-#tl-scroll::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+/* Grid sits below the sticky header, inside the same scroll container */
 #tl-grid{position:relative;display:flex;}
 
 /* Date column */
@@ -158,6 +163,36 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
 /* weather loading indicator */
 #wx-status{font-size:9px;font-family:monospace;color:var(--mu);padding:2px 8px;border-radius:4px;border:1px solid var(--bd);background:var(--sf2);}
+
+/* ── MODE 3: MANUAL PICKER ── */
+#pi-manual{display:none;flex:1;flex-direction:column;overflow-y:auto;padding:14px;}
+#pi-manual.show{display:flex;}
+.man-section{margin-bottom:18px;}
+.man-label{font-size:9px;font-family:monospace;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:block;}
+/* Drum roller */
+.drum-row{display:flex;gap:6px;align-items:center;}
+.drum-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.drum-lbl{font-size:8px;font-family:monospace;color:var(--mu);}
+.drum{width:64px;height:120px;overflow:hidden;position:relative;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);cursor:pointer;user-select:none;}
+.drum.wide{width:110px;}
+.drum-list{display:flex;flex-direction:column;transition:transform .15s cubic-bezier(.25,.46,.45,.94);}
+.drum-item{height:40px;display:flex;align-items:center;justify-content:center;font-size:14px;font-family:monospace;font-weight:700;color:var(--mu);flex-shrink:0;transition:color .1s,font-size .1s;}
+.drum-item.selected{color:var(--tx);font-size:16px;}
+/* Selection highlight band */
+.drum::before,.drum::after{content:'';position:absolute;left:0;right:0;height:40px;pointer-events:none;z-index:2;}
+.drum::before{top:0;background:linear-gradient(to bottom,var(--sf2) 0%,transparent 100%);}
+.drum::after{bottom:0;background:linear-gradient(to top,var(--sf2) 0%,transparent 100%);}
+.drum-sel-band{position:absolute;top:50%;left:0;right:0;height:40px;transform:translateY(-50%);border-top:1px solid var(--ac);border-bottom:1px solid var(--ac);background:rgba(108,138,255,.06);pointer-events:none;z-index:1;}
+/* Quick-text input for mode 3 */
+#man-quick-inp{width:100%;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:13px;font-family:'Courier New',monospace;padding:8px 10px;outline:none;}
+#man-quick-inp:focus{border-color:var(--ac);}
+.man-quick-hint{font-size:9px;color:var(--mu);font-family:monospace;margin-top:4px;}
+.man-submit{padding:8px 20px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid var(--ac);background:var(--ac);color:#fff;cursor:pointer;font-family:inherit;transition:all .12s;margin-top:10px;}
+.man-submit:hover{background:transparent;color:var(--ac);}
+.man-or{font-size:9px;color:var(--mu);font-family:monospace;text-align:center;padding:8px 0;border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);margin:12px 0;}
+.man-preview-box{background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;font-size:10px;font-family:monospace;color:var(--tx);line-height:1.8;min-height:60px;}
+.man-preview-box .ok{color:var(--gn);}
+.man-preview-box .err{color:var(--rd);}
 </style>
 </head>
 <body>
@@ -201,15 +236,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <!-- ── MAIN TIMELINE ── -->
 <div id="main">
   <div id="timeline-wrap">
-    <!-- Date header row -->
-    <div id="tl-header-row">
-      <div id="tl-yaxis-stub"></div>
-      <div id="tl-date-headers"></div>
-    </div>
-    <!-- Grid body -->
+    <!-- Body: fixed y-axis left, scrollable area right -->
     <div id="tl-body">
       <div id="tl-yaxis"></div>
+      <!-- tl-scroll handles both X and Y scroll.
+           date-headers inside it are position:sticky top:0 so they pin while scrolling vertically
+           and scroll naturally with horizontal pan. -->
       <div id="tl-scroll">
+        <div id="tl-date-headers"></div>
         <div id="tl-grid"></div>
       </div>
     </div>
@@ -247,12 +281,64 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       </div>
       <!-- MODE SELECT -->
       <div id="pi-mode-sel">
-        <button class="pi-mode-btn active" id="mode-btn-end" onclick="setMode('end')">Mode 1: Start + End Time</button>
+        <button class="pi-mode-btn active" id="mode-btn-end" onclick="setMode('end')">Mode 1: Start + End</button>
         <button class="pi-mode-btn" id="mode-btn-dur" onclick="setMode('dur')">Mode 2: Start + Duration</button>
+        <button class="pi-mode-btn" id="mode-btn-manual" onclick="setMode('manual')">Mode 3: Manual Entry</button>
       </div>
+
+      <!-- MODES 1 & 2: paste textarea -->
       <div id="pi-paste-wrap">
-        <textarea id="pi-paste" id="pi-paste" placeholder="Paste here — examples:&#10;&#10;Mode 1 (Start + End):&#10;12 May 2026	09:00	17:00&#10;13 May 2026	22:00	06:00&#10;&#10;Mode 2 (Start + Duration):&#10;12 May 2026	22:00	8h&#10;14 May 2026	06:00	7:30&#10;&#10;Column order: Date · Start · End-or-Duration"></textarea>
+        <textarea id="pi-paste" placeholder="Quick format (all modes):&#10;26/11, 22:00, 8h15m&#10;12/5, 09:00, 17:00&#10;&#10;Or tab-separated Excel paste:&#10;12 May 2026&#9;22:00&#9;06:00&#10;14 May 2026&#9;09:00&#9;8h&#10;&#10;Date: 26/11 · 12 May 2026 · 2026-05-12&#10;Time: 22:00 · 9:00 AM&#10;Duration/End: 8h15m · 8:30 · 17:00"></textarea>
         <button id="pi-parse-btn" onclick="piParse()">⚡ Parse & Preview</button>
+      </div>
+
+      <!-- MODE 3: Manual drum-roll picker -->
+      <div id="pi-manual">
+        <span class="man-label">📅 Select Date</span>
+        <div class="drum-row" style="margin-bottom:16px;">
+          <div class="drum-wrap">
+            <div class="drum-lbl">Day</div>
+            <div class="drum" id="drum-day"><div class="drum-sel-band"></div><div class="drum-list" id="dlist-day"></div></div>
+          </div>
+          <div class="drum-wrap">
+            <div class="drum-lbl">Month</div>
+            <div class="drum wide" id="drum-month"><div class="drum-sel-band"></div><div class="drum-list" id="dlist-month"></div></div>
+          </div>
+        </div>
+
+        <span class="man-label">⏰ Shift Start Time</span>
+        <div class="drum-row" style="margin-bottom:16px;">
+          <div class="drum-wrap">
+            <div class="drum-lbl">Hour</div>
+            <div class="drum" id="drum-sh"><div class="drum-sel-band"></div><div class="drum-list" id="dlist-sh"></div></div>
+          </div>
+          <div style="font-size:18px;font-weight:700;color:var(--mu);padding-top:16px;">:</div>
+          <div class="drum-wrap">
+            <div class="drum-lbl">Min</div>
+            <div class="drum" id="drum-sm"><div class="drum-sel-band"></div><div class="drum-list" id="dlist-sm"></div></div>
+          </div>
+        </div>
+
+        <span class="man-label">⏱ Shift Duration</span>
+        <div class="drum-row" style="margin-bottom:16px;">
+          <div class="drum-wrap">
+            <div class="drum-lbl">Hours</div>
+            <div class="drum" id="drum-dh"><div class="drum-sel-band"></div><div class="drum-list" id="dlist-dh"></div></div>
+          </div>
+          <div style="font-size:18px;font-weight:700;color:var(--mu);padding-top:16px;">h</div>
+          <div class="drum-wrap">
+            <div class="drum-lbl">Mins</div>
+            <div class="drum" id="drum-dm"><div class="drum-sel-band"></div><div class="drum-list" id="dlist-dm"></div></div>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="man-preview-box" id="man-preview">Select values above to preview shift</div>
+        <button class="man-submit" onclick="manSubmit()">✓ Add This Shift</button>
+
+        <div class="man-or">— or type directly —</div>
+        <input id="man-quick-inp" type="text" placeholder="26/11, 22:00, 8h15m" oninput="manQuickParse(this.value)" onkeydown="if(event.key==='Enter')manQuickSubmit()"/>
+        <div class="man-quick-hint">Format: DD/MM, HH:MM, duration (8h · 8h30m · 8:30) — press Enter to add</div>
       </div>
     </div>
     <!-- RIGHT: preview -->
@@ -293,8 +379,9 @@ var hrPx = 40; // pixels per hour — zoom target: 24*hrPx = total grid height
 var rainVisible = true;
 var shiftData = {}; // { 'YYYY-MM-DD': [{id, label, start, end, type}] }
 var weatherData = {}; // { 'YYYY-MM-DD': [{hour, rain_mm, rain_prob}] }
-var piMode = 'end'; // 'end' | 'dur'
+var piMode = 'end'; // 'end' | 'dur' | 'manual'
 var piParsed = [];
+var manQuickResult = null; // holds parsed result from quick-text box
 
 // ════════════════════════════════════
 // THEME
@@ -416,19 +503,18 @@ function switchMonth(m){
 // ════════════════════════════════════
 function renderMonth(m){
   var days = daysInMonth(m);
-  var colW = Math.max(60, Math.min(120, Math.floor((window.innerWidth - 52 - 20) / days)));
-  colW = Math.max(60, colW); // minimum 60px
+  var scrollEl = document.getElementById("tl-scroll");
+  var availW = (scrollEl ? scrollEl.offsetWidth : window.innerWidth) - 4;
+  var naturalW = Math.floor(availW / days);
+  var colW = Math.max(80, Math.min(180, naturalW));
   var totalH = hrPx * 24;
 
-  // CSS var
+  // CSS var — used by .date-hd and .date-col min-width
   document.documentElement.style.setProperty('--col-w', colW + 'px');
 
-  // ── date headers ──
+  // ── Date headers (sticky inside tl-scroll) ──
   var hdCont = document.getElementById('tl-date-headers');
   hdCont.innerHTML = '';
-  var stub = document.getElementById('tl-yaxis-stub');
-  stub.style.width = stub.style.minWidth = '52px';
-
   for(var d = 1; d <= days; d++){
     var iso = isoDate(m, d);
     var dow = new Date(YEAR, m, d).getDay();
@@ -440,28 +526,33 @@ function renderMonth(m){
     hdCont.appendChild(hd);
   }
 
-  // ── Y-axis ──
+  // ── Y-axis (fixed left panel, synced vertically via translateY) ──
   var yax = document.getElementById('tl-yaxis');
-  yax.style.height = totalH + 'px';
   yax.innerHTML = '';
+  var yaxInner = document.createElement('div');
+  yaxInner.id = 'yax-inner';
+  yaxInner.style.cssText = 'position:relative;height:' + totalH + 'px;will-change:transform;';
   for(var h = 0; h <= 24; h++){
     var lbl = document.createElement('div');
     lbl.className = 'y-label';
     lbl.style.top = (h * hrPx) + 'px';
     lbl.textContent = String(h % 24).padStart(2,'0') + ':00';
-    yax.appendChild(lbl);
+    yaxInner.appendChild(lbl);
   }
+  yax.appendChild(yaxInner);
 
   // ── Grid ──
   var grid = document.getElementById('tl-grid');
   grid.innerHTML = '';
   grid.style.height = totalH + 'px';
+  grid.style.width = (colW * days) + 'px';
+  grid.style.minWidth = (colW * days) + 'px';
 
-  // sync yaxis scroll with tl-scroll
+  // Sync y-axis labels vertically: use a wrapper div translated by scrollTop
   var tlScroll = document.getElementById('tl-scroll');
   tlScroll.onscroll = function(){
-    yax.style.transform = 'translateY(-' + tlScroll.scrollTop + 'px)';
-    hdCont.style.transform = 'translateX(-' + tlScroll.scrollLeft + 'px)';
+    var wrap = document.getElementById('yax-inner');
+    if(wrap) wrap.style.transform = 'translateY(-' + tlScroll.scrollTop + 'px)';
   };
 
   // build date columns
@@ -491,10 +582,20 @@ function renderMonth(m){
     grid.appendChild(col);
   }
 
-  // Scroll to 06:00 on initial load (so morning is visible)
+  // Scroll vertically to 06:00 and horizontally to today (or start of month)
   setTimeout(function(){
     var tls = document.getElementById('tl-scroll');
-    tls.scrollTop = Math.max(0, hrPx * 5); // 05:00
+    tls.scrollTop = Math.max(0, hrPx * 5); // 06:00
+    // Scroll today's column into view horizontally
+    var todayIso = today();
+    var todayMonth = parseInt(todayIso.slice(5,7)) - 1;
+    if(todayMonth === m && parseInt(todayIso.slice(0,4)) === YEAR){
+      var todayDay = parseInt(todayIso.slice(8,10));
+      var scrollX = Math.max(0, (todayDay - 3) * colW); // show 2 days before today
+      tls.scrollLeft = scrollX;
+    } else {
+      tls.scrollLeft = 0;
+    }
   }, 50);
 
   checkOverlaps();
@@ -670,59 +771,86 @@ function clearAllShifts(){
 // WEATHER API (Open-Meteo, London)
 // ════════════════════════════════════
 function fetchWeather(force){
-  var cacheKey = 'month_' + YEAR + '_' + curMonth;
   if(!force){
     loadWeather();
-    // check if we already have data for this month
     var d1 = isoDate(curMonth, 1);
-    if(weatherData[d1]) return; // cached
+    if(weatherData[d1]) return; // already cached
   }
 
   var startDate = isoDate(curMonth, 1);
   var endDate = isoDate(curMonth, daysInMonth(curMonth));
-  var url = 'https://api.open-meteo.com/v1/forecast?latitude=51.5085&longitude=-0.1257' +
-    '&hourly=precipitation,precipitation_probability' +
-    '&start_date=' + startDate + '&end_date=' + endDate +
-    '&timezone=Europe%2FLondon&forecast_days=16';
-
-  // For past months, use archive API
-  var now = new Date();
-  var monthStart = new Date(YEAR, curMonth, 1);
-  var useArchive = monthStart < now && curMonth < now.getMonth();
-  if(YEAR < now.getFullYear()) useArchive = true;
-
-  var archiveUrl = 'https://archive-api.open-meteo.com/v1/archive?latitude=51.5085&longitude=-0.1257' +
-    '&hourly=precipitation,precipitation_probability' +
-    '&start_date=' + startDate + '&end_date=' + endDate + '&timezone=Europe%2FLondon';
-
   var wxStatus = document.getElementById('wx-status');
   wxStatus.textContent = 'weather: loading…';
 
-  var fetchUrl = useArchive ? archiveUrl : url;
+  // Decide which API to use:
+  // - Archive API: for months that have fully passed (end date is in the past)
+  // - Forecast API: for current month or future months
+  // Archive API does NOT support precipitation_probability, so we only request precipitation.
+  // Forecast API supports both.
+  var now = new Date();
+  var monthEndDate = new Date(YEAR, curMonth + 1, 0); // last day of month
+  var isPast = monthEndDate < now;
+
+  // Also: forecast API only goes ~16 days ahead from today.
+  // For future months beyond 16 days, we skip (no data yet) rather than erroring.
+  var monthStartDate = new Date(YEAR, curMonth, 1);
+  var daysUntilStart = Math.floor((monthStartDate - now) / 86400000);
+  if(daysUntilStart > 14){
+    wxStatus.textContent = 'weather: not yet available';
+    return;
+  }
+
+  var fetchUrl, isArchive;
+  if(isPast){
+    // Archive: only precipitation available (no probability)
+    fetchUrl = 'https://archive-api.open-meteo.com/v1/archive?latitude=51.5085&longitude=-0.1257' +
+      '&hourly=precipitation' +
+      '&start_date=' + startDate + '&end_date=' + endDate + '&timezone=Europe%2FLondon';
+    isArchive = true;
+  } else {
+    // Forecast: clamp end_date to today+15 to avoid API errors
+    var maxEnd = new Date(now.getTime() + 14 * 86400000);
+    var clampedEnd = maxEnd < monthEndDate ? formatDate(maxEnd) : endDate;
+    fetchUrl = 'https://api.open-meteo.com/v1/forecast?latitude=51.5085&longitude=-0.1257' +
+      '&hourly=precipitation,precipitation_probability' +
+      '&start_date=' + startDate + '&end_date=' + clampedEnd +
+      '&timezone=Europe%2FLondon';
+    isArchive = false;
+  }
 
   fetch(fetchUrl)
-    .then(function(r){ return r.json(); })
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function(data){
-      if(!data.hourly) throw new Error('no hourly data');
+      if(!data.hourly || !data.hourly.time) throw new Error('no hourly data in response');
       var times = data.hourly.time;
-      var prec = data.hourly.precipitation || [];
-      var prob = data.hourly.precipitation_probability || [];
-      // group by date
+      var prec  = data.hourly.precipitation || [];
+      var prob  = isArchive ? [] : (data.hourly.precipitation_probability || []);
+
       times.forEach(function(t, i){
-        var iso = t.slice(0, 10);
+        var iso  = t.slice(0, 10);
         var hour = parseInt(t.slice(11, 13));
-        if(!weatherData[iso]) weatherData[iso] = [];
-        while(weatherData[iso].length <= hour) weatherData[iso].push({rain_mm: 0, rain_prob: 0});
-        weatherData[iso][hour] = {rain_mm: prec[i] || 0, rain_prob: prob[i] || 0};
+        if(!weatherData[iso]) weatherData[iso] = new Array(24).fill(null).map(function(){ return {rain_mm:0, rain_prob:0}; });
+        weatherData[iso][hour] = {
+          rain_mm:   prec[i]  != null ? prec[i]  : 0,
+          rain_prob: prob[i]  != null ? prob[i]  : 0
+        };
       });
+
       saveWeather();
       wxStatus.textContent = 'weather: ✓ London';
       renderMonth(curMonth);
     })
     .catch(function(err){
-      wxStatus.textContent = 'weather: error';
-      console.warn('Weather fetch error:', err);
+      wxStatus.textContent = 'weather: ✗ error';
+      console.warn('[Calendar] Weather fetch failed:', fetchUrl, err);
     });
+}
+
+function formatDate(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
 // ════════════════════════════════════
@@ -738,12 +866,17 @@ function setMode(m){
   piMode = m;
   document.getElementById('mode-btn-end').classList.toggle('active', m === 'end');
   document.getElementById('mode-btn-dur').classList.toggle('active', m === 'dur');
-  // update placeholder
-  var ta = document.getElementById('pi-paste');
-  if(m === 'end'){
-    ta.placeholder = 'Mode 1 — Date · Start Time · End Time\n\nExamples:\n12 May 2026\t09:00\t17:00\n13 May 2026\t22:00\t06:00\n15 May 2026\t08:30\t16:30';
+  document.getElementById('mode-btn-manual').classList.toggle('active', m === 'manual');
+  // show/hide panels
+  var pasteWrap = document.getElementById('pi-paste-wrap');
+  var manualWrap = document.getElementById('pi-manual');
+  if(m === 'manual'){
+    pasteWrap.style.display = 'none';
+    manualWrap.classList.add('show');
+    initDrums();
   } else {
-    ta.placeholder = 'Mode 2 — Date · Start Time · Duration\n\nExamples:\n12 May 2026\t22:00\t8h\n14 May 2026\t06:00\t7:30\n16 May 2026\t09:00\t8\n17 May 2026\t14:00\t7h 30m';
+    pasteWrap.style.display = '';
+    manualWrap.classList.remove('show');
   }
 }
 function piClear(){
@@ -769,9 +902,12 @@ function parseDate(s){
   // ISO: 2026-05-12
   var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if(m) return new Date(+m[1], +m[2]-1, +m[3]);
-  // DD/MM/YYYY or DD-MM-YYYY
+  // DD/MM/YYYY or DD-MM-YYYY (full year)
   m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+  // DD/MM or D/M — short form, assume YEAR 2026
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if(m){ var dd=+m[1],mm=+m[2]; if(mm>=1&&mm<=12&&dd>=1&&dd<=31) return new Date(YEAR,mm-1,dd); }
   // "12 May 2026" or "12 May" (assume YEAR)
   var MONTHMAP = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11,
     january:0,february:1,march:2,april:3,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
@@ -834,6 +970,18 @@ function parseDuration(s){
 function piParse(){
   var raw = document.getElementById('pi-paste').value;
   if(!raw.trim()){ piSetStatus('idle', 'paste something first'); return; }
+
+  // Normalise: if a line is comma-separated (quick format) convert to tab-separated
+  // e.g. "26/11, 22:00, 8h15m"  →  "26/11\t22:00\t8h15m"
+  raw = raw.split(/\r?\n/).map(function(line){
+    line = line.replace(/\r/g,'').trim();
+    if(!line) return line;
+    // If no tab but has 2+ commas, treat as comma-separated quick entry
+    if(line.indexOf('\t') === -1 && (line.match(/,/g)||[]).length >= 1){
+      return line.split(',').map(function(c){ return c.trim(); }).join('\t');
+    }
+    return line;
+  }).join('\n');
 
   var lines = raw.split(/\r?\n/).map(function(l){ return l.replace(/\r/g,'').trim(); }).filter(Boolean);
   var results = [];
@@ -970,6 +1118,212 @@ function piCommit(){
   renderMonth(curMonth);
   piClear();
 }
+
+
+// ════════════════════════════════════
+// DRUM ROLLER — Mode 3 Manual Entry
+// ════════════════════════════════════
+var drumState = {
+  day: 1, month: new Date().getMonth(), // 0-based
+  sh: 9, sm: 0,   // shift start hour/min
+  dh: 8, dm: 0    // duration hour/min
+};
+var drumsInited = false;
+
+function initDrums(){
+  if(drumsInited){ updateManPreview(); return; }
+  drumsInited = true;
+
+  var today = new Date();
+  drumState.day   = today.getDate();
+  drumState.month = today.getMonth();
+  drumState.sh    = 9; drumState.sm = 0;
+  drumState.dh    = 8; drumState.dm = 0;
+
+  buildDrum('dlist-day',  'drum-day',  Array.from({length:31},function(_,i){return String(i+1).padStart(2,'0');}), drumState.day-1, function(i){ drumState.day=i+1; updateManPreview(); });
+  buildDrum('dlist-month','drum-month',['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],   drumState.month,  function(i){ drumState.month=i;   updateManPreview(); });
+  buildDrum('dlist-sh',   'drum-sh',   Array.from({length:24},function(_,i){return String(i).padStart(2,'0');}),  drumState.sh,     function(i){ drumState.sh=i;    updateManPreview(); });
+  buildDrum('dlist-sm',   'drum-sm',   Array.from({length:12},function(_,i){return String(i*5).padStart(2,'0');}),drumState.sm/5,   function(i){ drumState.sm=i*5; updateManPreview(); });
+  buildDrum('dlist-dh',   'drum-dh',   Array.from({length:25},function(_,i){return String(i)+'h';}),              drumState.dh,     function(i){ drumState.dh=i;    updateManPreview(); });
+  buildDrum('dlist-dm',   'drum-dm',   Array.from({length:12},function(_,i){return String(i*5).padStart(2,'0');}),drumState.dm/5,   function(i){ drumState.dm=i*5; updateManPreview(); });
+
+  updateManPreview();
+}
+
+function buildDrum(listId, drumId, items, initIdx, onChange){
+  var list  = document.getElementById(listId);
+  var drum  = document.getElementById(drumId);
+  var itemH = 40;
+  var visItems = 3; // items visible (top, selected, bottom)
+  var selIdx = initIdx;
+
+  function renderList(){
+    list.innerHTML = '';
+    items.forEach(function(val, i){
+      var el = document.createElement('div');
+      el.className = 'drum-item' + (i === selIdx ? ' selected' : '');
+      el.textContent = val;
+      list.appendChild(el);
+    });
+    // Position so selected item is in the centre slot
+    var offset = itemH - selIdx * itemH; // centre = itemH (1 item from top)
+    list.style.transform = 'translateY(' + offset + 'px)';
+  }
+
+  function snapTo(idx){
+    selIdx = Math.max(0, Math.min(items.length-1, idx));
+    renderList();
+    onChange(selIdx);
+  }
+
+  renderList();
+
+  // Touch / mouse drag
+  var startY = 0, startOffset = 0, isDragging = false;
+
+  function getOffset(){ return selIdx * itemH; }
+
+  drum.addEventListener('mousedown', function(e){ isDragging=true; startY=e.clientY; startOffset=getOffset(); e.preventDefault(); });
+  window.addEventListener('mousemove', function(e){
+    if(!isDragging) return;
+    var delta = startY - e.clientY;
+    var newIdx = Math.round((startOffset + delta) / itemH);
+    snapTo(newIdx);
+  });
+  window.addEventListener('mouseup', function(){ isDragging=false; });
+
+  drum.addEventListener('touchstart', function(e){ isDragging=true; startY=e.touches[0].clientY; startOffset=getOffset(); },{passive:true});
+  drum.addEventListener('touchmove', function(e){
+    if(!isDragging) return;
+    var delta = startY - e.touches[0].clientY;
+    var newIdx = Math.round((startOffset + delta) / itemH);
+    snapTo(newIdx);
+    e.preventDefault();
+  },{passive:false});
+  drum.addEventListener('touchend', function(){ isDragging=false; });
+
+  // Click top/bottom half to step
+  drum.addEventListener('click', function(e){
+    var rect = drum.getBoundingClientRect();
+    var relY = e.clientY - rect.top;
+    if(relY < rect.height/2) snapTo(selIdx-1);
+    else snapTo(selIdx+1);
+  });
+}
+
+function updateManPreview(){
+  var box = document.getElementById('man-preview');
+  var day   = drumState.day;
+  var month = drumState.month; // 0-based
+  var sh    = drumState.sh;
+  var sm    = drumState.sm;
+  var dh    = drumState.dh;
+  var dm    = drumState.dm;
+
+  if(dh === 0 && dm === 0){ box.innerHTML = '<span class="err">Duration is 0 — pick at least 1 hour or 5 minutes</span>'; return; }
+
+  var startMin = sh*60 + sm;
+  var durMin   = dh*60 + dm;
+  var endMin   = startMin + durMin;
+
+  var startIso = YEAR + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+  // end date
+  var endDate = new Date(YEAR, month, day + Math.floor(endMin/1440));
+  var endIso  = endDate.getFullYear()+'-'+String(endDate.getMonth()+1).padStart(2,'0')+'-'+String(endDate.getDate()).padStart(2,'0');
+  var endH    = Math.floor(endMin % 1440 / 60);
+  var endM    = endMin % 60;
+
+  var nightNote = endMin >= 1440 ? ' <span style="color:var(--ac);">🌙 crosses midnight → ends ' + String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0') + ' on ' + endIso + '</span>' : '';
+
+  box.innerHTML =
+    '<span class="ok">Date:</span> ' + String(day).padStart(2,'0') + ' ' + MONTHS_SHORT[month] + ' 2026<br>' +
+    '<span class="ok">Start:</span> ' + String(sh).padStart(2,'0')+':'+String(sm).padStart(2,'0') + '<br>' +
+    '<span class="ok">Duration:</span> ' + dh + 'h ' + (dm ? dm+'m' : '') + '<br>' +
+    '<span class="ok">End:</span> ' + String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0') + nightNote + '<br>' +
+    '<span style="color:var(--mu);font-size:8px;">Prep block 2h before · Post block 2h after (auto-added)</span>';
+}
+
+function manSubmit(){
+  var day   = drumState.day;
+  var month = drumState.month;
+  var sh    = drumState.sh, sm = drumState.sm;
+  var dh    = drumState.dh, dm = drumState.dm;
+  var dur   = dh*60 + dm;
+  if(dur === 0){ alert('Duration is 0. Please select a duration.'); return; }
+  var iso = YEAR+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  var startMin = sh*60 + sm;
+  addShiftToData(iso, startMin, startMin+dur, 'Shift');
+  saveShifts();
+  renderMonth(curMonth);
+  // quick feedback
+  var box = document.getElementById('man-preview');
+  var prev = box.innerHTML;
+  box.innerHTML = '<span class="ok">✓ Shift added to calendar!</span>';
+  setTimeout(function(){ box.innerHTML = prev; }, 1500);
+}
+
+// ── Quick-text box (Mode 3 shortcut) ──
+function manQuickParse(val){
+  manQuickResult = null;
+  var box = document.getElementById('man-preview');
+  val = val.trim();
+  if(!val){ box.innerHTML = 'Select values above or type here'; return; }
+
+  // Normalise commas to tabs and parse with existing parser
+  var normed = val.split(',').map(function(c){ return c.trim(); }).join('\t');
+  var cells  = normed.split('\t').map(function(c){ return c.trim(); });
+  if(cells.length < 2){ box.innerHTML = '<span class="err">Need at least: date, start time</span>'; return; }
+
+  var dt = parseDate(cells[0]);
+  if(!dt){ box.innerHTML = '<span class="err">Cannot parse date "'+cells[0]+'" — try DD/MM or 12 May</span>'; return; }
+  if(dt.getFullYear() !== YEAR){ box.innerHTML = '<span class="err">Date must be in 2026</span>'; return; }
+
+  var startMin = parseTime(cells[1]);
+  if(startMin === null){ box.innerHTML = '<span class="err">Cannot parse start time "'+cells[1]+'"</span>'; return; }
+
+  var endMin, durMin;
+  var third = cells[2] || '';
+  // Try as duration first, then as end time
+  durMin = parseDuration(third);
+  if(durMin !== null){
+    endMin = startMin + durMin;
+  } else {
+    endMin = parseTime(third);
+    if(endMin !== null){
+      if(endMin < startMin) endMin += 1440;
+      durMin = endMin - startMin;
+    } else if(third){
+      box.innerHTML = '<span class="err">Cannot parse "'+third+'" as duration or end time</span>'; return;
+    } else {
+      box.innerHTML = '<span class="err">Missing duration or end time</span>'; return;
+    }
+  }
+  if(durMin <= 0){ box.innerHTML = '<span class="err">Duration must be positive</span>'; return; }
+
+  var iso = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  manQuickResult = {iso:iso, startMin:startMin, endMin:endMin, durMin:durMin};
+
+  var endH = Math.floor(endMin%1440/60), endM = endMin%60;
+  var nightNote = endMin>=1440 ? ' 🌙 crosses midnight' : '';
+  box.innerHTML =
+    '<span class="ok">✓ ' + String(dt.getDate()).padStart(2,'0') + ' ' + MONTHS_SHORT[dt.getMonth()] + ' 2026</span><br>' +
+    'Start: ' + minutesToTime(startMin) + '  →  End: ' + String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0') + nightNote + '<br>' +
+    'Duration: ' + Math.floor(durMin/60) + 'h' + (durMin%60?' '+durMin%60+'m':'') + '<br>' +
+    '<span style="color:var(--mu);font-size:8px;">Press Enter or tap ✓ to add</span>';
+}
+
+function manQuickSubmit(){
+  if(!manQuickResult){ alert('No valid shift parsed. Check your input.'); return; }
+  addShiftToData(manQuickResult.iso, manQuickResult.startMin, manQuickResult.endMin, 'Shift');
+  saveShifts();
+  renderMonth(curMonth);
+  var inp = document.getElementById('man-quick-inp');
+  inp.value = '';
+  manQuickResult = null;
+  document.getElementById('man-preview').innerHTML = '<span class="ok">✓ Shift added!</span>';
+  setTimeout(function(){ updateManPreview(); }, 1200);
+}
+
 
 // ════════════════════════════════════
 // INIT
