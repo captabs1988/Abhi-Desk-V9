@@ -416,6 +416,7 @@ const LS_PARK    = 'dayflow_park'; // saved parking blocks
 const LS_PLACED  = 'dayflow_placed'; // saved placed blocks
 const LS_NOTE    = 'dayflow_note'; // saved note text
 const LS_GAS_URL = 'dayflow_gasurl'; // saved apps-script URL
+const LS_SHARED  = 'abhiDesk_shared_events'; // shared event store with Calendar panel
 
 function getTodayKey() { // get YYYY-MM-DD for today in selected timezone
   return new Intl.DateTimeFormat('en-CA',{timeZone:getTz(),year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -449,7 +450,43 @@ function saveState() { // persist state into localStorage
       };
     });
     localStorage.setItem(LS_PLACED, JSON.stringify(placedData));
+    syncToShared(); // mirror to shared event store for Calendar panel
   } catch(e) { console.warn('Save failed:', e); }
+}
+
+
+function syncToShared() { // mirror placed blocks into shared event store (non-destructive)
+  try {
+    const raw = localStorage.getItem(LS_SHARED);
+    let all = [];
+    try { all = JSON.parse(raw) || []; } catch(e) { all = []; }
+    // Remove all existing dayflow-sourced entries, then re-add from current placed[]
+    all = all.filter(ev => ev.source !== 'dayflow');
+    const todayStr = getTodayKey();
+    placed.forEach(pb => {
+      const bDateKey = pb.dateKey || todayStr;
+      const todayParts = todayStr.split('-').map(Number);
+      const bParts = bDateKey.split('-').map(Number);
+      const todayD = new Date(todayParts[0], todayParts[1]-1, todayParts[2]);
+      const blockD = new Date(bParts[0], bParts[1]-1, bParts[2]);
+      const dayDiff = Math.round((blockD - todayD) / 86400000);
+      // startMin relative to that block's own date midnight
+      const startMin = Math.max(0, pb.startMin - dayDiff * 1440);
+      const endMin = Math.min(1440, startMin + pb.duration);
+      if(startMin >= endMin) return;
+      all.push({
+        id: 'df_' + pb.id,
+        source: 'dayflow',
+        dateKey: bDateKey,
+        startMin: startMin,
+        endMin: endMin,
+        duration: pb.duration,
+        name: pb.name,
+        color: pb.color || null
+      });
+    });
+    localStorage.setItem(LS_SHARED, JSON.stringify(all));
+  } catch(e) { console.warn('[AbhiDesk] syncToShared failed:', e); }
 }
 
 function loadParkBlocks() { // restore parked blocks
@@ -1435,6 +1472,8 @@ const savedPlaced = loadPlacedData();
 savedPlaced.forEach(pb => {
   placeBlock(pb.blockId, pb.name, pb.color, pb.startMin, pb.duration, pb.id, pb.placedAt, pb.dateKey || getTodayKey());
 });
+// Sync to shared store on load so Calendar always has fresh data
+syncToShared();
 
 // Auto-save on any change
 const origUpdateNotepad = updateNotepad;
@@ -1449,13 +1488,83 @@ document.getElementById('gasUrl').addEventListener('input', e => {
   localStorage.setItem(LS_GAS_URL, e.target.value);
 });
 
+
+// ══════════════════════════════════════════════════
+// SHARED EVENT STORE — read Calendar entries into DayFlow timeline
+// Calendar-sourced events appear as read-only tinted blocks.
+// These do NOT appear in placed[], do NOT affect notepad or CSV export,
+// and are purely visual overlays. DayFlow usage unchanged.
+// ══════════════════════════════════════════════════
+let sharedEls = []; // DOM elements for shared blocks (Calendar source)
+
+function renderSharedBlocks() { // draw Calendar-sourced events on timeline
+  // Remove old shared block elements
+  sharedEls.forEach(el => el.remove());
+  sharedEls = [];
+
+  const dz = document.getElementById('dz');
+  if(!dz) return;
+
+  let all = [];
+  try { all = JSON.parse(localStorage.getItem(LS_SHARED) || '[]'); } catch(e){ return; }
+
+  const todayStr = getTodayKey();
+  const todayParts = todayStr.split('-').map(Number);
+  const todayD = new Date(todayParts[0], todayParts[1]-1, todayParts[2]);
+
+  all.forEach(ev => {
+    if(ev.source !== 'calendar') return; // only show Calendar entries here
+    const dk = ev.dateKey;
+    if(!dk) return;
+    const bParts = dk.split('-').map(Number);
+    const blockD = new Date(bParts[0], bParts[1]-1, bParts[2]);
+    const dayDiff = Math.round((blockD - todayD) / 86400000);
+    // renderMin = minutes from today's midnight
+    const renderMin = dayDiff * 1440 + (ev.startMin || 0);
+    const durMin = Math.max(15, (ev.endMin || 0) - (ev.startMin || 0));
+
+    const el = document.createElement('div');
+    el.className = 't-block shared-cal-block'; // uses existing t-block styles + overlay class
+    el.style.cssText = [
+      'position:absolute',
+      'left:0', 'right:0',
+      'top:' + m2y(renderMin) + 'px',
+      'height:' + Math.max(26, durMin * PPM) + 'px',
+      'background:rgba(108,138,255,.18)',
+      'border-left:3px solid rgba(108,138,255,.8)',
+      'border-radius:8px',
+      'pointer-events:none',  // non-interactive — does not interfere with DayFlow blocks
+      'z-index:3',
+      'opacity:.75',
+      'display:flex', 'align-items:flex-start',
+      'padding:4px 6px',
+      'font-size:10px',
+      'font-family:Space Mono,monospace',
+      'color:rgba(108,138,255,.9)',
+      'white-space:nowrap', 'overflow:hidden',
+      'user-select:none'
+    ].join(';');
+    el.title = '📅 Calendar: ' + (ev.name || 'Shift');
+    const durH = Math.floor(durMin/60), durM = durMin%60;
+    el.textContent = '📅 ' + (ev.name || 'Shift') + ' (' + durH + 'h' + (durM ? durM+'m' : '') + ')';
+    dz.appendChild(el);
+    sharedEls.push(el);
+  });
+}
+
+// Refresh shared blocks whenever shared store changes (Calendar saves a shift)
+window.addEventListener('storage', e => {
+  if(e.key === 'abhiDesk_shared_events') renderSharedBlocks();
+});
+
 // Save on page unload as a safety net
 window.addEventListener('beforeunload', saveState);
 
 setTimeout(()=>{
   const m=Math.max(0,getNowMinutes()-30);
   tlScroll.scrollTop=m2y(m); tSlider.value=m; updateSliderLabel();
-},100);
+  renderSharedBlocks(); // show Calendar events on DayFlow timeline
+},150);
 </script>
 <script>
 
