@@ -180,6 +180,10 @@ table.tbl input[type=time]:focus{border-bottom-color:var(--accent);background:rg
 .abhisync-btn.syncing .sync-icon{animation:syncSpin .8s linear infinite;}
 .abhisync-btn.success{border-color:rgba(52,211,153,.5);color:#34d399;background:rgba(52,211,153,.08);}
 .abhisync-btn.error{border-color:rgba(239,68,68,.5);color:#ef4444;background:rgba(239,68,68,.08);}
+.abhisync-btn.qb-btn{border-color:rgba(52,211,153,.35);color:#34d399;background:rgba(52,211,153,.07);}
+.abhisync-btn.qb-btn:hover{background:rgba(52,211,153,.15);border-color:rgba(52,211,153,.6);}
+.abhisync-btn.qb-restore{border-color:rgba(245,158,11,.35);color:#f59e0b;background:rgba(245,158,11,.07);}
+.abhisync-btn.qb-restore:hover{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.6);}
 .abhisync-folder{display:flex;align-items:center;gap:4px;padding:5px 8px;border-radius:8px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.06);color:#a78bfa;font-size:10px;font-weight:600;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:all .15s;white-space:nowrap;flex-shrink:0;}
 .abhisync-folder:hover{background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.5);}
 .abhisync-folder:disabled{opacity:.35;cursor:default;pointer-events:none;}
@@ -188,6 +192,9 @@ table.tbl input[type=time]:focus{border-bottom-color:var(--accent);background:rg
 [data-theme="light"] .abhisync-btn{background:rgba(58,95,217,.06);border-color:rgba(58,95,217,.25);color:#3a5fd9;}
 [data-theme="light"] .abhisync-btn:hover{background:rgba(58,95,217,.12);border-color:rgba(58,95,217,.5);}
 [data-theme="light"] .abhisync-btn.success{border-color:rgba(5,150,105,.4);color:#059669;background:rgba(5,150,105,.06);}
+[data-theme="light"] .abhisync-btn.qb-btn{border-color:rgba(5,150,105,.35);color:#059669;background:rgba(5,150,105,.06);}
+[data-theme="light"] .abhisync-btn.qb-btn:hover{background:rgba(5,150,105,.12);}
+[data-theme="light"] .abhisync-btn.qb-restore{border-color:rgba(217,119,6,.35);color:#b45309;background:rgba(217,119,6,.06);}
 [data-theme="light"] .abhisync-folder{background:rgba(124,58,237,.05);border-color:rgba(124,58,237,.2);color:#7c3aed;}
 [data-theme="light"] .abhisync-folder:hover{background:rgba(124,58,237,.1);}
 </style>
@@ -211,12 +218,19 @@ table.tbl input[type=time]:focus{border-bottom-color:var(--accent);background:rg
 <button class="tab" draggable="true" id="tab-fitlog" onclick="switchTab('fitlog')" ondblclick="renameTab('fitlog')"><span>🏃</span><span id="lbl-fitlog">Fit Log</span></button>
 <button class="tab" draggable="true" id="tab-calendar" onclick="switchTab('calendar')" ondblclick="renameTab('calendar')"><span>📅</span><span id="lbl-calendar">Calendar</span></button>
 <button class="tab" draggable="true" id="tab-settings" onclick="switchTab('settings')" ondblclick="renameTab('settings')"><span>⚙️</span><span id="lbl-settings">Settings</span></button>
-<div id="abhisyncWrap" style="margin-left:auto;display:flex;align-items:center;gap:5px;flex-shrink:0;padding-right:4px;">
-  <span class="abhisync-status" id="abhisyncStatus" style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;"></span>
-  <button class="abhisync-folder" id="abhisyncFolder" onclick="AbhiSync.openFolder()" disabled title="Open sync folder">📂</button>
-  <button class="abhisync-btn" id="abhisyncBtn" onclick="AbhiSync.run()" title="Sync all data: JSON files + Google Sheets">
-    <span class="sync-icon">🔄</span> <span id="abhisyncLabel">Sync All</span>
+<div id="abhisyncWrap" style="margin-left:auto;display:flex;align-items:center;gap:4px;flex-shrink:0;padding-right:6px;">
+  <span id="abhisyncStatus" style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;"></span>
+  <button class="abhisync-btn qb-btn" id="abhisyncBackup" onclick="quickBackup()" title="Download all your data as a single JSON file instantly — no folder picker needed">
+    ⬇ Backup
   </button>
+  <button class="abhisync-btn qb-restore" id="abhisyncRestore" onclick="quickRestore()" title="Restore from a previously downloaded backup JSON file">
+    ⬆ Restore
+  </button>
+  <button class="abhisync-btn" id="abhisyncBtn" onclick="AbhiSync.run()" title="Sync all data: JSON files + Google Sheets">
+    <span class="sync-icon" id="syncIcon">🔄</span> <span id="abhisyncLabel">Sync Files</span>
+  </button>
+  <button class="abhisync-folder" id="abhisyncCloud" onclick="cloudRestore()" title="Restore all data from Google Sheets cloud backup">☁ Load</button>
+  <input type="file" id="restoreFileInput" accept=".json" style="display:none" onchange="handleRestoreFile(this)">
 </div>
 </div>
 <div class="panel-area">
@@ -1400,22 +1414,17 @@ window.AbhiSync = (function(){
 
   // ── UI helpers ──
   function setBtn(cls, label) {
-    const btn = document.getElementById('abhisyncBtn');
-    const lbl = document.getElementById('abhisyncLabel');
+    var btn = document.getElementById('abhisyncBtn');
+    var lbl = document.getElementById('abhisyncLabel');
     if (btn) { btn.className = 'abhisync-btn ' + cls; }
     if (lbl) lbl.textContent = label;
   }
   function setStatus(msg) {
-    const el = document.getElementById('abhisyncStatus');
+    var el = document.getElementById('abhisyncStatus');
     if (el) el.textContent = msg;
   }
   function updateFolderBtn() {
-    const btn = document.getElementById('abhisyncFolder');
-    const name = localStorage.getItem(DIR_HANDLE_KEY);
-    if (btn) {
-      btn.disabled = !_dirHandle;
-      if (name) btn.title = 'Folder: ' + name + '/AbhiDesk_Sync';
-    }
+    // No-op: folder button replaced by quickBackup/quickRestore in new UI
   }
 
   // ── Main sync ──
@@ -1490,11 +1499,10 @@ window.AbhiSync = (function(){
   // Init
   updateFolderBtn();
 
-  return { run, openFolder };
+  return { run, openFolder, syncToSheets };
 })();
-
-// ════════════════════════════════════════════════════════
-// PANEL STYLES for Vanity, FitLog, Settings
+// Expose syncToSheets globally for quickBackup
+var syncToSheets = AbhiSync.syncToSheets;
 // ════════════════════════════════════════════════════════
 (function(){
 var st=document.createElement('style');
@@ -1801,6 +1809,117 @@ window.importFromJsonFiles = async function() {
     loaded + ' file(s) restored, ' + skipped + ' skipped.\n\nRefresh the page to see your data.';
   alert(summary);
 };
+
+// ════════════════════════════════════════════════════════
+// QUICK BACKUP — instant single-file download, no folder picker
+// ════════════════════════════════════════════════════════
+function quickBackup() {
+  var btn = document.getElementById('abhisyncBackup');
+  var status = document.getElementById('abhisyncStatus');
+  var orig = btn.textContent;
+  btn.textContent = '⏳ Saving...';
+  btn.disabled = true;
+  try {
+    var timestamp = new Date().toISOString();
+    var master = { _syncedAt: timestamp, _source: 'AbhiDesk', _version: '3.0' };
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k === 'ct_apikey') continue; // skip API key
+      var v = localStorage.getItem(k);
+      try { master[k] = JSON.parse(v); } catch(e) { master[k] = v; }
+    }
+    var blob = new Blob([JSON.stringify(master, null, 2)], { type: 'application/json' });
+    var dateStr = new Date().toISOString().slice(0,10);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'abhidesk_backup_' + dateStr + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    // Update last backed up timestamp
+    var t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    localStorage.setItem('_abhiLastBackup', t);
+    status.textContent = '✓ backup ' + t;
+    btn.textContent = '✓ Saved!';
+    // Also silently push to Sheets in background
+    if (typeof syncToSheets === 'function') { try { syncToSheets(); } catch(e){} }
+    setTimeout(function() { btn.textContent = '⬇ Backup'; btn.disabled = false; }, 2000);
+  } catch(err) {
+    console.error('[quickBackup]', err);
+    btn.textContent = '✗ Error';
+    setTimeout(function() { btn.textContent = '⬇ Backup'; btn.disabled = false; }, 2500);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// QUICK RESTORE — pick a backup JSON file, restore all keys
+// ════════════════════════════════════════════════════════
+function quickRestore() {
+  document.getElementById('restoreFileInput').click();
+}
+
+function handleRestoreFile(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var btn = document.getElementById('abhisyncRestore');
+  btn.textContent = '⏳ Loading...';
+  btn.disabled = true;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = JSON.parse(e.target.result);
+      // Strip meta fields
+      var skip = ['_syncedAt','_source','_version','ct_apikey'];
+      var count = 0;
+      Object.keys(data).forEach(function(k) {
+        if (skip.includes(k)) return;
+        var v = typeof data[k] === 'string' ? data[k] : JSON.stringify(data[k]);
+        localStorage.setItem(k, v);
+        count++;
+      });
+      alert('✅ Restored ' + count + ' data keys from backup!\n\nThe page will now refresh to apply everything.');
+      location.reload();
+    } catch(err) {
+      console.error('[quickRestore]', err);
+      alert('❌ Could not read backup file. Make sure it\'s a valid AbhiDesk backup JSON.');
+      btn.textContent = '⬆ Restore';
+      btn.disabled = false;
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ════════════════════════════════════════════════════════
+// CLOUD RESTORE — pull from Google Sheets with proper UI
+// ════════════════════════════════════════════════════════
+async function cloudRestore() {
+  var btn = document.getElementById('abhisyncCloud');
+  var status = document.getElementById('abhisyncStatus');
+  if (!confirm('☁️ Restore from Google Sheets?\n\nThis will pull all your data from the cloud backup and overwrite local data.\n\nContinue?')) return;
+  btn.textContent = '⏳ Loading...';
+  btn.disabled = true;
+  status.textContent = 'pulling from cloud...';
+  try {
+    await restoreFromSheet();
+    // restoreFromSheet already calls alert + reload
+  } catch(err) {
+    console.error('[cloudRestore]', err);
+    alert('❌ Cloud restore failed. Check your internet connection and try again.');
+    status.textContent = 'restore failed';
+  } finally {
+    btn.textContent = '☁ Load';
+    btn.disabled = false;
+  }
+}
+
+// ═══ Show last backup time on load ═══
+(function() {
+  var t = localStorage.getItem('_abhiLastBackup');
+  if (t) {
+    var el = document.getElementById('abhisyncStatus');
+    if (el) el.textContent = 'backup ' + t;
+  }
+})();
 
 build();
 setTimeout(goToday,200);
