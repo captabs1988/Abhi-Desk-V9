@@ -1674,7 +1674,7 @@ function stRender(){
   var order=stGetOrder();var hl=JSON.parse(localStorage.getItem('ad_hidden')||'[]');
   var html='<div class="st-section"><div class="st-section-title">\ud83d\udd32 Panel Visibility &amp; Order</div><div class="st-hint">\u283f Drag rows to reorder &middot; Toggle to show/hide &middot; \u270e Rename tab label</div><div class="st-panel-list" id="st-panel-list">';
   order.forEach(function(tid){var meta=PM[tid]||{icon:'\ud83d\udcc4',def:tid};var lbl=localStorage.getItem('adlbl_'+tid)||meta.def;var vis=!hl.includes(tid);html+='<div class="st-panel-row" draggable="true" data-tid="'+tid+'"><span class="st-panel-drag">\u283f</span><span class="st-panel-name">'+meta.icon+' <span id="st-lbl-'+tid+'">'+lbl+'</span></span><button class="st-panel-rename" onclick="stRename(\''+tid+'\')"><span>\u270e</span> Rename</button><label class="st-panel-toggle"><input type="checkbox" id="st-vis-'+tid+'"'+(vis?' checked':'')+" onchange=\"stToggleVis('"+tid+"',this.checked)\"><span class=\"st-toggle-slider\"></span></label></div>";});
-  html+='</div></div><div class="st-section"><div class="st-section-title">\ud83c\udff7\ufe0f Panel Short Names <span style="font-size:9px;font-weight:400;color:var(--muted)">(AI Reference)</span></div><div class="st-hint" style="margin-bottom:8px">These short names never change \u2014 use them when talking to AI so it always knows which panel you mean, regardless of what you rename the tab.</div><table style="width:100%;border-collapse:collapse;font-family:\'JetBrains Mono\',monospace;font-size:11px;"><thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border);"><th style="padding:4px 8px;font-weight:600">Short Name</th><th style="padding:4px 8px;font-weight:600">Current Display Name</th><th style="padding:4px 8px;font-weight:600">Panel ID</th></tr></thead><tbody id="st-shortnames-body"></tbody></table></div><div class="st-section"><div class="st-section-title">\ud83d\udd04 Sync</div><button class="st-btn" onclick="AbhiSync.run()">\ud83d\udd04 Sync All Data Now</button><div class="st-hint" style="margin-top:6px">Exports all AbhiDesk data to your sync folder + Google Sheets</div></div><div class="st-section"><div class="st-section-title">\u26a0\ufe0f Danger Zone</div><button class="st-btn danger" onclick="restoreAllPanels()">\u21ba Restore All Hidden Panels</button></div>';
+  html+='</div></div><div class="st-section"><div class="st-section-title">\ud83c\udff7\ufe0f Panel Short Names <span style="font-size:9px;font-weight:400;color:var(--muted)">(AI Reference)</span></div><div class="st-hint" style="margin-bottom:8px">These short names never change \u2014 use them when talking to AI so it always knows which panel you mean, regardless of what you rename the tab.</div><table style="width:100%;border-collapse:collapse;font-family:\'JetBrains Mono\',monospace;font-size:11px;"><thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border);"><th style="padding:4px 8px;font-weight:600">Short Name</th><th style="padding:4px 8px;font-weight:600">Current Display Name</th><th style="padding:4px 8px;font-weight:600">Panel ID</th></tr></thead><tbody id="st-shortnames-body"></tbody></table></div><div class="st-section"><div class="st-section-title">\ud83d\udd04 Sync</div><button class="st-btn" onclick="AbhiSync.run()">\ud83d\udd04 Sync All Data Now</button><div class="st-hint" style="margin-top:6px">Exports all AbhiDesk data to your sync folder + Google Sheets</div><div style="margin-top:10px"><button class="st-btn" onclick="importFromJsonFiles()">\ud83d\udcc2 Import from JSON Files</button><div class="st-hint" style="margin-top:6px">Pick your saved JSON backup files to restore data into AbhiDesk</div></div><div style="margin-top:10px"><button class="st-btn" onclick="restoreFromSheet()">\u2601\ufe0f Restore from Google Sheets</button><div class="st-hint" style="margin-top:6px">Pull data back from your Google Sheets backend</div></div></div><div class="st-section"><div class="st-section-title">\u26a0\ufe0f Danger Zone</div><button class="st-btn danger" onclick="restoreAllPanels()">\u21ba Restore All Hidden Panels</button></div>';
   inner.innerHTML=html;stWireDrag();stRenderShortNames();
 }
 window.stRename=function(tid){var sp=document.getElementById('lbl-'+tid);var st2=document.getElementById('st-lbl-'+tid);if(!sp)return;var orig=sp.textContent;var nv=prompt('Rename "'+orig+'" to:',orig);if(!nv||!nv.trim())return;nv=nv.trim();sp.textContent=nv;if(st2)st2.textContent=nv;localStorage.setItem('adlbl_'+tid,nv);};
@@ -1686,6 +1686,121 @@ function stSaveCurrentOrder(){var list=document.getElementById('st-panel-list');
 window._settingsRender=function(){var panel=document.getElementById('panel-settings');if(!panel.querySelector('.st-toolbar'))buildSettings();else stRender();};
 })();
 
+
+// ════════════════════════════════════════════════════════
+// IMPORT FROM JSON FILES
+// ════════════════════════════════════════════════════════
+window.importFromJsonFiles = async function() {
+  // Map of filename → which localStorage key(s) to populate
+  const FILE_MAP = {
+    'dailylog.json':              ['ad2026'],
+    'pledge.json':                ['ad_pledge'],
+    'znf_sessions.json':          ['znf_sessions'],
+    'codetrack_sessions.json':    ['cw6_sess'],
+    'codetrack_log.json':         ['cw6_log'],
+    'codetrack_tasks.json':       ['cw6_tasks'],
+    'codetrack_queue.json':       ['cw6_queue'],
+    'codetrack_state.json':       ['cw6_sp','cw6_spm','cw6_sid','cw6_as','cw6_at','cw6_sps'],
+    'dayflow_park.json':          ['dayflow_park'],
+    'dayflow_placed.json':        ['dayflow_placed'],
+    'dayflow_note.json':          ['dayflow_note'],
+    'breathe_templates.json':     ['breathe_user_tpl'],
+    'vanity.json':                ['ad_vanity'],
+    'abhiplanner_wake.json':      ['abhiPlanner_wakeData'],
+    'abhiplanner_autosave.json':  ['abhiPlannerV5.autosave'],
+    'hub_settings.json':          ['__hub_settings__'], // special handling
+    'abhidesk_master_backup.json':['__master__'],        // special handling
+  };
+
+  // Open file picker — allow multiple JSON files
+  let fileHandles;
+  try {
+    fileHandles = await window.showOpenFilePicker({
+      multiple: true,
+      types: [{ description: 'JSON files', accept: { 'application/json': ['.json'] } }]
+    });
+  } catch(e) {
+    if (e.name === 'AbortError') return;
+    alert('File picker not supported. Try Chrome/Edge.');
+    return;
+  }
+
+  let loaded = 0, skipped = 0;
+  const log = [];
+
+  for (const handle of fileHandles) {
+    const file = await handle.getFile();
+    const name = file.name;
+    let json;
+    try {
+      const text = await file.text();
+      json = JSON.parse(text);
+    } catch(e) {
+      log.push('⚠️ ' + name + ' — invalid JSON, skipped');
+      skipped++;
+      continue;
+    }
+
+    // Strip wrapper metadata (_syncedAt, _source)
+    const data = Object.assign({}, json);
+    delete data._syncedAt;
+    delete data._source;
+    delete data._version;
+
+    if (name === 'hub_settings.json') {
+      // Restore individual settings keys
+      const s = data.settings || {};
+      if (s.ad_theme) localStorage.setItem('ad_theme', s.ad_theme);
+      if (s.ad_hidden) localStorage.setItem('ad_hidden', s.ad_hidden);
+      if (s.ad_panel_order) localStorage.setItem('ad_panel_order', s.ad_panel_order);
+      if (s.ad_sheet) localStorage.setItem('ad_sheet', s.ad_sheet);
+      Object.keys(s).forEach(function(k) {
+        if (k.startsWith('adlbl_')) localStorage.setItem(k, s[k]);
+      });
+      log.push('✅ ' + name + ' — settings restored');
+      loaded++;
+
+    } else if (name === 'abhidesk_master_backup.json') {
+      // Only use master as fallback — restore keys not already set
+      let count = 0;
+      const skip = ['_syncedAt','_source','_version','ct_apikey'];
+      Object.keys(data).forEach(function(k) {
+        if (skip.includes(k)) return;
+        if (localStorage.getItem(k) === null) {
+          const v = typeof data[k] === 'string' ? data[k] : JSON.stringify(data[k]);
+          localStorage.setItem(k, v);
+          count++;
+        }
+      });
+      log.push('✅ ' + name + ' — ' + count + ' missing keys filled from master');
+      loaded++;
+
+    } else if (FILE_MAP[name]) {
+      const keys = FILE_MAP[name];
+      keys.forEach(function(k) {
+        if (data[k] !== undefined) {
+          const v = typeof data[k] === 'string' ? data[k] : JSON.stringify(data[k]);
+          localStorage.setItem(k, v);
+        }
+      });
+      log.push('✅ ' + name + ' — restored');
+      loaded++;
+
+    } else {
+      log.push('⚠️ ' + name + ' — unknown file, skipped');
+      skipped++;
+    }
+  }
+
+  if (loaded === 0 && skipped === 0) {
+    alert('No files were selected.');
+    return;
+  }
+
+  const summary = '📂 Import complete!\n\n' + log.join('\n') + '\n\n' +
+    loaded + ' file(s) restored, ' + skipped + ' skipped.\n\nRefresh the page to see your data.';
+  alert(summary);
+};
 
 build();
 setTimeout(goToday,200);
